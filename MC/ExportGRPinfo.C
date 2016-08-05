@@ -29,8 +29,19 @@ ExportGRPinfo(Int_t run)
     printf("export CONFIG_TRIGGER=p-p\n");
   }
   //
-  // ENERGY - must be fixed 
-  printf("export CONFIG_ENERGY=%.0f\n", grp->GetBeamEnergy() * 2.);
+  // BEAM TYPE LHC
+  printf("export CONFIG_BEAMTYPELHC=%s\n", grp->GetBeamTypeFromLHC());  
+    //
+  // BEAM ENERGY
+  printf("export CONFIG_BEAMENERGY=%.0f\n", grp->GetBeamEnergy());
+  //
+  // ENERGY
+  if (grp->GetBeamType().EqualTo("p-p") ||
+      grp->GetBeamType().EqualTo("A-A")) 
+    printf("export CONFIG_ENERGY=%.0f\n", grp->GetBeamEnergy() * 2.);
+  else if (grp->GetBeamType().EqualTo("p-A") ||
+	   grp->GetBeamType().EqualTo("A-p")) 
+    printf("export CONFIG_ENERGY=%.0f\n", grp->GetBeamEnergy() * 2.);
   //
   // return grp
   return grp;

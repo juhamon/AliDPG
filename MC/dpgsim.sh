@@ -86,25 +86,28 @@ function runBenchmark(){
     fi
 }
 
-# Define the pt hard bin arrays
-pthardbin_loweredges=( 0 5 11 21 36 57 84 117 152 191 234 )
-pthardbin_higheredges=( 5 11 21 36 57 84 117 152 191 234 -1)
-
 CONFIG_NEVENTS="200"
 CONFIG_SEED=""
 CONFIG_GENERATOR=""
+CONFIG_PROCESS=""
 CONFIG_MAGNET=""
 CONFIG_ENERGY=""
+OVERRIDE_ENERGY=""
 CONFIG_SYSTEM=""
+OVERRIDE_SYSTEM=""
 CONFIG_TRIGGER=""
+OVERRIDE_TRIGGER=""
 CONFIG_DETECTOR="Default"
 CONFIG_PHYSICSLIST=""
 CONFIG_BMIN=""
 CONFIG_BMAX=""
+CONFIG_YMIN=""
+CONFIG_YMAX=""
 CONFIG_PTHARDBIN=""
 CONFIG_PTHARDMIN=""
 CONFIG_PTHARDMAX=""
 CONFIG_QUENCHING=""
+CONFIG_QHAT=""
 CONFIG_RUN=""
 CONFIG_UID="1"
 CONFIG_SIMULATION="Default"
@@ -137,6 +140,10 @@ while [ ! -z "$1" ]; do
         CONFIG_GENERATOR="$1"
 	export CONFIG_GENERATOR
         shift
+    elif [ "$option" = "--process" ]; then
+        CONFIG_PROCESS="$1"
+	export CONFIG_PROCESS
+        shift
 #    elif [ "$option" = "--magnet" ]; then
 #        CONFIG_MAGNET="$1"
 #	export CONFIG_MAGNET	
@@ -145,16 +152,13 @@ while [ ! -z "$1" ]; do
         CONFIG_DETECTOR="$1"
 	export CONFIG_DETECTOR
         shift
-#    elif [ "$option" = "--system" ]; then
-#        CONFIG_SYSTEM="$1"
-#	export CONFIG_SYSTEM
-#        CONFIG_TRIGGER="$1"
-#	export CONFIG_TRIGGER
-#        shift
-#    elif [ "$option" = "--energy" ]; then
-#        CONFIG_ENERGY="$1"
-#	export CONFIG_ENERGY
-#        shift
+    elif [ "$option" = "--system" ]; then
+        OVERRIDE_SYSTEM="$1"
+        OVERRIDE_TRIGGER="$1"
+        shift
+    elif [ "$option" = "--energy" ]; then
+        OVERRIDE_ENERGY="$1"
+        shift
     elif [ "$option" = "--simulation" ]; then
         CONFIG_SIMULATION="$1"
 	export CONFIG_SIMULATION
@@ -183,14 +187,34 @@ while [ ! -z "$1" ]; do
         CONFIG_BMAX="$1"
 	export CONFIG_BMAX
         shift
+    elif [ "$option" = "--ymin" ]; then
+        CONFIG_YMIN="$1"
+	export CONFIG_YMIN
+        shift
+    elif [ "$option" = "--ymax" ]; then
+        CONFIG_YMAX="$1"
+	export CONFIG_YMAX
+        shift
     elif [ "$option" = "--pthardbin" ]; then
         CONFIG_PTHARDBIN="$1"
 	export CONFIG_PTHARDBIN
         shift  
-#    elif [ "$option" = "--quench" ]; then
-#        CONFIG_QUENCHING="$1"
-#	export CONFIG_QUENCHING
-#        shift 
+    elif [ "$option" = "--pthardmin" ]; then
+        CONFIG_PTHARDMIN="$1"
+	export CONFIG_PTHARDMIN
+        shift  
+    elif [ "$option" = "--pthardmax" ]; then
+        CONFIG_PTHARDMAX="$1"
+	export CONFIG_PTHARDMAX
+        shift  
+    elif [ "$option" = "--quenching" ]; then
+        CONFIG_QUENCHING="$1"
+	export CONFIG_QUENCHING
+        shift 
+    elif [ "$option" = "--qhat" ]; then
+        CONFIG_QHAT="$1"
+	export CONFIG_QHAT
+        shift 
     elif [ "$option" = "--nevents" ]; then
         CONFIG_NEVENTS="$1"
 	export CONFIG_NEVENTS
@@ -228,12 +252,16 @@ if [ "$CONFIG_SEED" -eq 0 ]; then
 fi
 
 if [ ! -z "$CONFIG_PTHARDBIN" ]; then
+
+    # Define the pt hard bin arrays
+    pthardbin_loweredges=(0 5 7 9 12 16 21 28 36 45 57 70 85 99 115 132 150 169 190 212 235)
+    pthardbin_higheredges=( 5 7 9 12 16 21 28 36 45 57 70 85 99 115 132 150 169 190 212 235 -1)
+
     # Define environmental vars for pt binning
     CONFIG_PTHARDMIN=${pthardbin_loweredges[$CONFIG_PTHARDBIN]}
     CONFIG_PTHARDMAX=${pthardbin_higheredges[$CONFIG_PTHARDBIN]}
     export CONFIG_PTHARDMIN CONFIG_PTHARDMAX
 
-    echo "* pt hard from $CONFIG_PTHARDMIN to $CONFIG_PTHARDMAX"
 fi
 
 # mkdir input
@@ -262,6 +290,39 @@ if [[ $ALIEN_JDL_LPMOCDBJOB == "true" ]]; then
     export CONFIG_MODE="ocdb"
 fi
     
+### createSnapshot.C
+
+if [[ $CONFIG_MODE == *"ocdb"* ]]; then
+
+echo
+echo "============================================"
+echo " DPGSIM - Snapshot"
+echo "============================================"
+echo
+
+    OCDBC=$ALIDPG_ROOT/MC/CreateSnapshot.C
+    if [ -f CreateSnapshot.C ]; then
+	SIMC=CreateSnapshot.C
+    fi
+    
+    runcommand "OCDB SIM SNAPSHOT" $OCDBC\(0\) ocdbsim.log 500
+    mv -f syswatch.log ocdbsimwatch.log
+    if [ ! -f OCDBsim.root ]; then
+	echo "*! Could not find OCDBsim.root, the snapshot creation chain failed!"
+	echo "Could not find OCDBsim.root, the snapshot creation chain failed!" >> validation_error.message
+	exit 2
+    fi
+
+    runcommand "OCDB REC SNAPSHOT" $OCDBC\(1\) ocdbrec.log 500
+    mv -f syswatch.log ocdbrecwatch.log
+    if [ ! -f OCDBrec.root ]; then
+	echo "*! Could not find OCDBrec.root, the snapshot creation chain failed!"
+	echo "Could not find OCDBrec.root, the snapshot creation chain failed!" >> validation_error.message
+	exit 2
+    fi
+
+fi
+
 ### check basic requirememts
     
     if [[ $CONFIG_MODE == "" ]]; then
@@ -296,10 +357,24 @@ if [[ $CONFIG_MODE == *"Muon"* ]]; then
     fi
 fi
 
-
 ### automatic settings from GRP info
 
 aliroot -b -q $ALIDPG_ROOT/MC/ExportGRPinfo.C\($CONFIG_RUN\) 2>/dev/null | grep export > grpdump.sh && source grpdump.sh # && rm grpdump.sh
+
+### override automatic settings from GRP info if requested 
+
+if [[ $OVERRIDE_ENERGY != "" ]]; then
+    export CONFIG_ENERGY=$OVERRIDE_ENERGY
+fi
+
+if [[ $OVERRIDE_SYSTEM != "" ]]; then
+    export CONFIG_SYSTEM=$OVERRIDE_SYSTEM
+fi
+
+if [[ $OVERRIDE_TRIGGER != "" ]]; then
+    export CONFIG_TRIGGER=$OVERRIDE_TRIGGER
+fi
+
 
 ##########################################
 
@@ -309,6 +384,8 @@ echo " DPGSIM"
 echo "============================================"
 echo "Run.............. $CONFIG_RUN"
 echo "Mode............. $CONFIG_MODE"
+echo "QA train......... $CONFIG_QA"
+echo "AOD train........ $CONFIG_AOD"
 echo "============================================"
 echo "Year............. $CONFIG_YEAR"
 echo "Period........... $CONFIG_PERIOD"
@@ -316,6 +393,7 @@ echo "Beam type........ $CONFIG_BEAMTYPE"
 echo "Energy........... $CONFIG_ENERGY"
 echo "============================================"
 echo "Generator........ $CONFIG_GENERATOR"
+echo "Process.......... $CONFIG_PROCESS"
 echo "No. Events....... $CONFIG_NEVENTS"
 echo "Unique-ID........ $CONFIG_UID"
 echo "MC seed.......... $CONFIG_SEED"
@@ -329,42 +407,20 @@ echo "Trigger.......... $CONFIG_TRIGGER"
 echo "OCDB............. $CONFIG_OCDB"
 echo "HLT.............. $CONFIG_HLT"
 echo "============================================"
-echo "QA train......... $CONFIG_QA"
-echo "AOD train........ $CONFIG_AOD"
 #echo "B-field.......... $CONFIG_MAGNET"
 #echo "Physicslist...... $CONFIG_PHYSICSLIST"
 echo "b-min............ $CONFIG_BMIN"
 echo "b-max............ $CONFIG_BMAX"
-echo "pT hard bin...... $CONFIG_PTHARDBIN"
+echo "y-min............ $CONFIG_YMIN"
+echo "y-max............ $CONFIG_YMAX"
+echo "============================================"
+echo "pT-hard bin...... $CONFIG_PTHARDBIN"
+echo "pT-hard min...... $CONFIG_PTHARDMIN"
+echo "pT-hard max...... $CONFIG_PTHARDMAX"
+echo "quenching........ $CONFIG_QUENCHING"
+echo "q-hat............ $CONFIG_QHAT"
 echo "============================================"
 echo
-
-### createSnapshot.C
-
-if [[ $CONFIG_MODE == *"ocdb"* ]]; then
-
-    OCDBC=$ALIDPG_ROOT/MC/CreateSnapshot.C
-    if [ -f CreateSnapshot.C ]; then
-	SIMC=CreateSnapshot.C
-    fi
-    
-    runcommand "OCDB SIM SNAPSHOT" $OCDBC\(0\) ocdbsim.log 500
-    mv -f syswatch.log ocdbsimwatch.log
-    if [ ! -f OCDBsim.root ]; then
-	echo "*! Could not find OCDBsim.root, the snapshot creation chain failed!"
-	echo "Could not find OCDBsim.root, the snapshot creation chain failed!" >> validation_error.message
-	exit 2
-    fi
-
-    runcommand "OCDB REC SNAPSHOT" $OCDBC\(1\) ocdbrec.log 500
-    mv -f syswatch.log ocdbrecwatch.log
-    if [ ! -f OCDBrec.root ]; then
-	echo "*! Could not find OCDBrec.root, the snapshot creation chain failed!"
-	echo "Could not find OCDBrec.root, the snapshot creation chain failed!" >> validation_error.message
-	exit 2
-    fi
-
-fi
 
 ### sim.C
 

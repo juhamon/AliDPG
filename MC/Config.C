@@ -19,9 +19,17 @@ static Float_t energyConfig    = 0.;        // CMS energy
 static Float_t triggerConfig   = 0.;        // trigger
 static Float_t bminConfig      = 0.;        // impact parameter min
 static Float_t bmaxConfig      = 20.;       // impact parameter max
+static Float_t yminConfig      = -1.e6;     // rapidity min
+static Float_t ymaxConfig      =  1.e6;     // rapidity max
 static Float_t crossingConfig  = 0.;        // 2.8e-4 // crossing angle
 static Int_t   seedConfig      = 123456789; // random seed
 static Int_t   uidConfig       = 1;         // unique ID
+static TString processConfig   = "";        // process
+static TString systemConfig    = "";        // system
+static Float_t pthardminConfig = 0.;        // pt-hard min
+static Float_t pthardmaxConfig = -1.;       // pt-hard max
+static Int_t   quenchingConfig = 0;         // quenching
+static Float_t qhatConfig      = 1.7;       // q-hat
 
 /*****************************************************************/
 
@@ -41,10 +49,18 @@ Config()
   printf(">>>>>   magnetic field: %s \n", MagnetName[magnetConfig]);
   printf(">>>>>         detector: %s \n", DetectorName[detectorConfig]);
   printf(">>>>>     MC generator: %s \n", GeneratorName[generatorConfig]);
+  printf(">>>>>          process: %s \n", processConfig.Data());
+  printf(">>>>>           system: %s \n", systemConfig.Data());
   printf(">>>>>       CMS energy: %f \n", energyConfig);
   printf(">>>>>          trigger: %s \n", TriggerName[triggerConfig]);
   printf(">>>>>            b-min: %f \n", bminConfig);
   printf(">>>>>            b-max: %f \n", bmaxConfig);
+  printf(">>>>>            y-min: %f \n", yminConfig);
+  printf(">>>>>            y-max: %f \n", ymaxConfig);
+  printf(">>>>>      pt-hard min: %f \n", pthardminConfig);
+  printf(">>>>>      pt-hard max: %f \n", pthardmaxConfig);
+  printf(">>>>>        quenching: %d \n", quenchingConfig);
+  printf(">>>>>            q-hat: %f \n", qhatConfig);
   printf(">>>>>   crossing angle: %f \n", crossingConfig);
   printf(">>>>>      random seed: %d \n", seedConfig);
   printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
@@ -129,6 +145,18 @@ ProcessEnvironment()
     }
   }
   
+  // process configuration
+  processConfig = "";
+  if (gSystem->Getenv("CONFIG_PROCESS")) {
+    processConfig = gSystem->Getenv("CONFIG_PROCESS");
+  }
+  
+  // system configuration
+  systemConfig = "";
+  if (gSystem->Getenv("CONFIG_SYSTEM")) {
+    systemConfig = gSystem->Getenv("CONFIG_SYSTEM");
+  }
+  
   // energy configuration
   energyConfig = 0.;
   if (gSystem->Getenv("CONFIG_ENERGY"))
@@ -157,19 +185,49 @@ ProcessEnvironment()
   // impact parameter configuration
   bminConfig = 0.;
   if (gSystem->Getenv("CONFIG_BMIN"))
-    bminConfig = atoi(gSystem->Getenv("CONFIG_BMIN"));
+    bminConfig = atof(gSystem->Getenv("CONFIG_BMIN"));
   if (bminConfig < 0) {
     printf(">>>>> Invalid min impact parameter: %f \n", bminConfig);
     abort();
   }
   bmaxConfig = 20.;
   if (gSystem->Getenv("CONFIG_BMAX"))
-    bmaxConfig = atoi(gSystem->Getenv("CONFIG_BMAX"));
+    bmaxConfig = atof(gSystem->Getenv("CONFIG_BMAX"));
   if (bmaxConfig <= bminConfig) {
     printf(">>>>> Invalid max impact parameter: %f \n", bmaxConfig);
     abort();
   }
 
+  // rapidity configuration
+  yminConfig = -1.e6;
+  if (gSystem->Getenv("CONFIG_YMIN"))
+    yminConfig = atof(gSystem->Getenv("CONFIG_YMIN"));
+  ymaxConfig = 1.e6;
+  if (gSystem->Getenv("CONFIG_YMAX"))
+    ymaxConfig = atof(gSystem->Getenv("CONFIG_YMAX"));
+  if (ymaxConfig <= yminConfig) {
+    printf(">>>>> Invalid max rapidity: %f \n", ymaxConfig);
+    abort();
+  }
+  
+  // pt-hard and quenching configuration
+  pthardminConfig = 0.;
+  if (gSystem->Getenv("CONFIG_PTHARDMIN"))
+    pthardminConfig = atof(gSystem->Getenv("CONFIG_PTHARDMIN"));
+  pthardmaxConfig = -1.;
+  if (gSystem->Getenv("CONFIG_PTHARDMAX"))
+    pthardmaxConfig = atof(gSystem->Getenv("CONFIG_PTHARDMAX"));
+  if (pthardmaxConfig != -1 && pthardmaxConfig <= pthardminConfig) {
+    printf(">>>>> Invalid max pt-hard: %f \n", pthardmaxConfig);
+    abort();
+  }
+  quenchingConfig = 0;
+  if (gSystem->Getenv("CONFIG_QUENCHING"))
+    quenchingConfig = atoi(gSystem->Getenv("CONFIG_QUENCHING"));
+  qhatConfig = 1.7;
+  if (gSystem->Getenv("CONFIG_QHAT"))
+    qhatConfig = atof(gSystem->Getenv("CONFIG_QHAT"));
+  
   // seed configuration
   seedConfig = TDatime().Get();
   if (gSystem->Getenv("CONFIG_SEED"))

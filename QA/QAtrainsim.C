@@ -80,6 +80,9 @@ Int_t debug_level     = 1;    // Debugging
 Int_t run_number      = 0;
 Int_t run_flag        = 1500;
 
+const Char_t *raw_cdb = "raw://";
+const Char_t *local_cdb = "local://";
+
 void QAtrainsim(Int_t run = 0,
              const char *xmlfile   = "wn.xml",
              Int_t  stage          = 0, /*0 = QA train, 1...n - merging stage*/
@@ -95,14 +98,21 @@ void QAtrainsim(Int_t run = 0,
   if (gSystem->Getenv("CONFIG_OCDB"))
     ocdbConfig = gSystem->Getenv("CONFIG_OCDB");
   if (ocdbConfig.Contains("alien")) {
+    TGrid::Connect("alien://");
+    if (!gGrid || !gGrid->IsConnected()) {
+      ::Error("QAtrain", "No grid connection");
+      return;
+    }
     // set OCDB 
     gROOT->LoadMacro("$ALIDPG_ROOT/MC/OCDBConfig.C");
     OCDBDefault(1);
+    cdb = raw_cdb;
   }
   else {
     // set OCDB snapshot mode
     AliCDBManager *cdbm = AliCDBManager::Instance();
     cdbm->SetSnapshotMode("OCDBrec.root");
+    cdb = local_cdb;
   }
 
   if(iCollisionType == kPbPb)
@@ -111,16 +121,6 @@ void QAtrainsim(Int_t run = 0,
     doVZEROPbPb =kTRUE;
   }
 
-  TString cdbString(cdb);
-  if (cdbString.Contains("raw://"))
- {
-  TGrid::Connect("alien://");
-  if (!gGrid || !gGrid->IsConnected()) {
-    ::Error("QAtrain", "No grid connection");
-    return;
-  }
-
-}
 //  gSystem->SetIncludePath("-I. -I$ROOTSYS/include -I$ALICE_ROOT/include -I$ALICE_ROOT -I$ALICE_PHYSICS -I$ALICE_PHYSICS/include -I$ALICE_PHYSICS/PWGPP/TRD/macros");
   // Set temporary merging directory to current one
   gSystem->Setenv("TMPDIR", gSystem->pwd());
@@ -298,7 +298,7 @@ void AddAnalysisTasks(const char *cdb_location)
     // Request from Annalisa
     if (iCollisionType==kPbPb) taskspdqa->SetHeavyIonMode();
     taskspdqa->SelectCollisionCandidates(kTriggerMask);
-    taskspdqa->SetOCDBInfo(run_number, "raw://");
+    taskspdqa->SetOCDBInfo(run_number, cdb_location);
   }  
   //
   // SDD (F. Prino)

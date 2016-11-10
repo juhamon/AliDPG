@@ -20,7 +20,9 @@ function runcommand(){
     echo -e "\n" >&2
 
     echo "* $1 : $2"
+    echo "* $1 : output log in $3"
     echo "* $1 : $2" >&2
+    echo "* $1 : output log in $3" >&2
 
     START=`date "+%s"`
     time aliroot -b -q -x $2 >>$3 2>&1
@@ -87,9 +89,10 @@ function runBenchmark(){
 }
 
 CONFIG_NEVENTS="200"
-CONFIG_SEED=""
+CONFIG_SEED="0"
 CONFIG_GENERATOR=""
 CONFIG_PROCESS=""
+CONFIG_PROCESSBIN=""
 CONFIG_MAGNET=""
 CONFIG_ENERGY=""
 OVERRIDE_ENERGY=""
@@ -98,6 +101,7 @@ OVERRIDE_SYSTEM=""
 CONFIG_TRIGGER=""
 OVERRIDE_TRIGGER=""
 CONFIG_DETECTOR="Default"
+CONFIG_DETECTORMASK="0x0"
 CONFIG_PHYSICSLIST=""
 CONFIG_BMIN=""
 CONFIG_BMAX=""
@@ -136,6 +140,10 @@ while [ ! -z "$1" ]; do
         CONFIG_UID="$1"
 	export CONFIG_UID
         shift
+    elif [ "$option" = "--seed" ]; then
+        CONFIG_SEED="$1"
+	export CONFIG_SEED
+        shift
     elif [ "$option" = "--generator" ]; then
         CONFIG_GENERATOR="$1"
 	export CONFIG_GENERATOR
@@ -144,6 +152,10 @@ while [ ! -z "$1" ]; do
         CONFIG_PROCESS="$1"
 	export CONFIG_PROCESS
         shift
+    elif [ "$option" = "--processbin" ]; then
+        CONFIG_PROCESSBIN="$1"
+	export CONFIG_PROCESSBIN
+        shift  
 #    elif [ "$option" = "--magnet" ]; then
 #        CONFIG_MAGNET="$1"
 #	export CONFIG_MAGNET	
@@ -154,6 +166,9 @@ while [ ! -z "$1" ]; do
         shift
     elif [ "$option" = "--system" ]; then
         OVERRIDE_SYSTEM="$1"
+        OVERRIDE_TRIGGER="$1"
+        shift
+    elif [ "$option" = "--trigger" ]; then
         OVERRIDE_TRIGGER="$1"
         shift
     elif [ "$option" = "--energy" ]; then
@@ -238,7 +253,9 @@ DC_RUN=$CONFIG_RUN
 DC_EVENT=$CONFIG_UID
 export DC_RUN DC_EVENT
 
-CONFIG_SEED=$((ALIEN_PROC_ID%1000000000))
+if [ "$CONFIG_SEED" -eq 0 ]; then
+    CONFIG_SEED=$((ALIEN_PROC_ID%1000000000))
+fi
 if [ "$CONFIG_SEED" -eq 0 ]; then
     CONFIG_SEED=$(((CONFIG_RUN*100000+CONFIG_UID)%1000000000))
     CONFIG_SEED_BASED="run / unique-id : $CONFIG_RUN / $CONFIG_UID"
@@ -261,6 +278,23 @@ if [ ! -z "$CONFIG_PTHARDBIN" ]; then
     CONFIG_PTHARDMIN=${pthardbin_loweredges[$CONFIG_PTHARDBIN]}
     CONFIG_PTHARDMAX=${pthardbin_higheredges[$CONFIG_PTHARDBIN]}
     export CONFIG_PTHARDMIN CONFIG_PTHARDMAX
+
+fi
+
+if [ ! -z "$CONFIG_PROCESSBIN" ]; then
+
+    # Define process array
+    if [[ $CONFIG_GENERATOR == *"Starlight"* ]]; then
+	process_names=(TwoGammaToMuLow TwoGammaToElLow TwoGammaToMuMedium TwoGammaToElMedium TwoGammaToMuHigh TwoGammaToElHigh CohRhoToPi CohJpsiToMu CohJpsiToEl CohPsi2sToMu CohPsi2sToEl CohPsi2sToMuPi CohPsi2sToElPi CohUpsilonToMu CohUpsilonToEl IncohRhoToPi IncohJpsiToMu IncohJpsiToEl IncohPsi2sToMu IncohPsi2sToEl IncohPsi2sToMuPi IncohPsi2sToElPi IncohUpsilonToMu IncohUpsilonToEl)
+	CONFIG_PROCESS=${process_names[$CONFIG_PROCESSBIN]}
+    fi
+
+    # check if well defined
+    if [ -z "$CONFIG_PROCESS" ]; then
+	echo "Undefined processbin $CONFIG_PROCESSBIN for generator $CONFIG_GENERATOR"
+	exit 1;
+    fi
+    export CONFIG_PROCESS
 
 fi
 
@@ -337,6 +371,17 @@ if [[ $CONFIG_RUN == "" ]]; then
     exit 2
 fi
 
+if [[ $CONFIG_OCDB == *"snapshot"* ]]; then
+    
+    if [ ! -f OCDBsim.root ]; then
+	echo ">>>>> ERROR: Could not find OCDBsim.root"
+    fi
+    if [ ! -f OCDBrec.root ]; then
+	echo ">>>>> ERROR: Could not find OCDBrec.root"
+	exit 2
+    fi    
+fi
+
 ### automatic settings from CONFIG_MODE
 
 if [[ $CONFIG_MODE == *"Muon"* ]]; then
@@ -391,6 +436,7 @@ echo "Year............. $CONFIG_YEAR"
 echo "Period........... $CONFIG_PERIOD"
 echo "Beam type........ $CONFIG_BEAMTYPE"
 echo "Energy........... $CONFIG_ENERGY"
+echo "Detector mask.... $CONFIG_DETECTORMASK"
 echo "============================================"
 echo "Generator........ $CONFIG_GENERATOR"
 echo "Process.......... $CONFIG_PROCESS"

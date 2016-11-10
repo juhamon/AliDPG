@@ -11,6 +11,7 @@
 enum EDetector_t {
   kDetectorDefault,
   kDetectorMuon,
+  kDetectorNoZDC,
   kDetectorCustom,
   kNDetectors
 };
@@ -18,6 +19,7 @@ enum EDetector_t {
 const Char_t *DetectorName[kNDetectors] = {
   "Default",
   "Muon",
+  "NoZDC",
   "Custom"
 };
 
@@ -83,6 +85,12 @@ DetectorConfig(Int_t tag)
     DetectorMuon();
     break;
     
+    // kDetectorNoZDC
+  case kDetectorNoZDC:
+    DetectorDefault();
+    iZDC = 0;
+    break;
+    
     // kDetectorCustom
   case kDetectorCustom:
     if ((gROOT->LoadMacro("DetectorCustom.C")) != 0) {
@@ -94,6 +102,8 @@ DetectorConfig(Int_t tag)
     break;
     
   }
+
+  DetectorInit();
   
 }
 
@@ -110,7 +120,8 @@ DetectorDefault()
    */
   
   Int_t year = atoi(gSystem->Getenv("CONFIG_YEAR"));
-  
+  UInt_t mask = strtol(gSystem->Getenv("CONFIG_DETECTORMASK"), 0, 16);
+
   iABSO   = 1;
   iACORDE = 1;
   iAD     = year < 2015 ? 0 : 1;
@@ -132,9 +143,8 @@ DetectorDefault()
   iTPC    = 1;
   iTRD    = 1;
   iVZERO  = 1;
-  iZDC    = 1;
+  iZDC    = mask & (1 << AliDAQ::DetectorID("ZDC")); // ZDC disabled if not in readout
 
-  DetectorInit();
 }
   
 /*****************************************************************/
@@ -174,7 +184,6 @@ DetectorMuon()
   iVZERO  = 1;
   iZDC    = 0;
 
-  DetectorInit();
 }
   
 /*****************************************************************/
